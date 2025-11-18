@@ -1,0 +1,371 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>ACM Mouse Maze Coding Challenge</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      text-align: center;
+      background: #05070a;
+      color: #f5f5f5;
+    }
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 10px 40px;
+      background: #0b1522;
+      border-bottom: 2px solid #1f3b5b;
+    }
+    header img {
+      height: 60px;
+      object-fit: contain;
+    }
+    header h1 {
+      margin: 0;
+      font-size: 24px;
+      letter-spacing: 1px;
+      color: #40c4ff;
+    }
+    header h2 {
+      margin: 2px 0 0;
+      font-size: 14px;
+      font-weight: normal;
+      color: #9ecbff;
+    }
+
+    #controls {
+      margin-top: 15px;
+    }
+    #controls select, #controls button, #controls input {
+      padding: 6px 10px;
+      margin: 5px;
+      border-radius: 4px;
+      border: 1px solid #2b3f5c;
+      background: #101826;
+      color: #f5f5f5;
+    }
+    #controls button {
+      cursor: pointer;
+    }
+
+    #maze {
+      display: grid;
+      margin: 20px auto;
+      gap: 1px;
+    }
+    .cell {
+      width: 20px;
+      height: 20px;
+      border: 1px solid #222;
+      box-sizing: border-box;
+    }
+    .wall  { background: #444; }
+    .start { background: #00c853; }
+    .end   { background: #d50000; }
+    .path  { background: #ffd54f; }
+    .mouse { background: #ffeb3b; border-radius: 50%; }
+
+    #bw {
+      display:flex;
+      justify-items: center;
+    }
+
+    #statusBar {
+      margin-top: 10px;
+      padding: 8px;
+      border-top: 1px solid #2b3f5c;
+      border-bottom: 1px solid #2b3f5c;
+      background: #070c14;
+    }
+    #statusBar span {
+      margin: 0 10px;
+    }
+
+    #results {
+      margin-top: 15px;
+    }
+    #scoreTable {
+      margin: 15px auto 30px;
+      border-collapse: collapse;
+      min-width: 60%;
+    }
+    #scoreTable th, #scoreTable td {
+      border: 1px solid #2b3f5c;
+      padding: 6px 10px;
+      font-size: 14px;
+    }
+    #scoreTable th {
+      background: #101826;
+    }
+    footer {
+      margin-top: 20px;
+      font-size: 12px;
+      color: #7e8ba4;
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <img src="/Transparent-Logo-min (1).png" alt="ACM Student Chapter Logo">
+  <div>
+    <h1>ACM Mouse Maze Coding Challenge</h1>
+    <h2>XIM University ACM Student Chapter</h2>
+  </div>
+  <img src="/xim-university-logo-1.png" alt="XIM University Logo">
+</header>
+
+<div id="controls">
+  <label>Difficulty:
+    <select id="levelSelect" onchange="changeLevel()">
+      <option value="easy">Easy (10×10)</option>
+      <option value="medium">Medium (20×20)</option>
+      <option value="hard" selected>Hard (30×30)</option>
+    </select>
+  </label>
+
+  <button onclick="randomizeMaze()">Random Maze</button>
+
+  <input type="file" id="fileInput" accept=".js">
+  <button onclick="loadParticipantCode()">Upload & Run Mouse</button>
+</div>
+
+<div id="statusBar">
+  <span>Level: <strong id="statusLevel">Hard</strong></span>
+  <span>Path length: <strong id="pathLen">-</strong></span>
+  <span>Algo time: <strong id="timeSec">-</strong> s</span>
+  <span>Score: <strong id="scoreVal">-</strong></span>
+</div>
+
+<div id="bw">
+  <div id="maze"></div>
+</div>
+
+<div id="results">
+  <input id="playerName" placeholder="Participant / Team name">
+  <button onclick="saveScore()">Save to Scoreboard</button>
+</div>
+
+<table id="scoreTable">
+  <thead>
+    <tr>
+      <th>#</th>
+      <th>Name</th>
+      <th>Level</th>
+      <th>Path length</th>
+      <th>Algo time (s)</th>
+      <th>Score</th>
+    </tr>
+  </thead>
+  <tbody></tbody>
+</table>
+
+<footer>
+  Organized by XIM University ACM Student Chapter • Mouse Maze Event
+</footer>
+
+<script>
+// --------- MAZE GENERATION (always solvable) ---------
+function makeEmptyGrid(n) {
+  const g = [];
+  for (let i = 0; i < n; i++) {
+    const row = [];
+    for (let j = 0; j < n; j++) row.push(0);
+    g.push(row);
+  }
+  return g;
+}
+
+// Create a maze with a guaranteed path from (0,0) to (n-1,n-1)
+function generateRandomMaze(n) {
+  const grid = makeEmptyGrid(n);
+
+  // Build a guaranteed corridor path: right along top row, then down last column
+  let r = 0, c = 0;
+  const pathCells = [];
+  pathCells.push([r, c]);
+  while (c < n - 1) { c++; pathCells.push([r, c]); }
+  while (r < n - 1) { r++; pathCells.push([r, c]); }
+
+  const pathSet = new Set(pathCells.map(p => p.toString()));
+
+  // Add random walls, but never on the guaranteed path
+  const wallProb = 0.35;
+  for (let i = 0; i < n; i++) {
+    for (let j = 0; j < n; j++) {
+      if (!pathSet.has([i, j].toString()) && Math.random() < wallProb) {
+        grid[i][j] = 1;
+      }
+    }
+  }
+
+  return {
+    grid,
+    start: [0, 0],
+    end: [n - 1, n - 1]
+  };
+}
+
+// Initialize mazes for each level
+const mazes = {
+  easy:   generateRandomMaze(10),
+  medium: generateRandomMaze(20),
+  hard:   generateRandomMaze(30)
+};
+
+const mazeDiv = document.getElementById("maze");
+let currentLevel = "hard";
+let currentGrid  = mazes[currentLevel].grid;
+let start        = mazes[currentLevel].start.slice();
+let end          = mazes[currentLevel].end.slice();
+let lastRun      = null;
+
+function changeLevel() {
+  const level = document.getElementById("levelSelect").value;
+  currentLevel = level;
+  currentGrid  = mazes[level].grid;
+  start        = mazes[level].start.slice();
+  end          = mazes[level].end.slice();
+  document.getElementById("statusLevel").innerText =
+    level.charAt(0).toUpperCase() + level.slice(1);
+  drawMaze();
+}
+
+function drawMaze(path = [], mousePos = null) {
+  const rows = currentGrid.length;
+  const cols = currentGrid[0].length;
+  mazeDiv.style.gridTemplateColumns = `repeat(${cols}, 20px)`;
+  mazeDiv.innerHTML = "";
+
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      const cell = document.createElement("div");
+      cell.classList.add("cell");
+      if (currentGrid[r][c] === 1) cell.classList.add("wall");
+      if (r === start[0] && c === start[1]) cell.classList.add("start");
+      if (r === end[0]   && c === end[1])   cell.classList.add("end");
+      if (path.some(p => p[0] === r && p[1] === c)) cell.classList.add("path");
+      if (mousePos && mousePos[0] === r && mousePos[1] === c) cell.classList.add("mouse");
+      mazeDiv.appendChild(cell);
+    }
+  }
+}
+drawMaze();
+
+// Random maze for current level
+function randomizeMaze() {
+  const size = currentGrid.length;
+  const levelMaze = generateRandomMaze(size);
+  mazes[currentLevel] = levelMaze;
+  currentGrid = levelMaze.grid;
+  start = levelMaze.start.slice();
+  end   = levelMaze.end.slice();
+  drawMaze();
+}
+
+// --------- RUN PARTICIPANT CODE (solve.js) ---------
+function loadParticipantCode() {
+  const file = document.getElementById("fileInput").files[0];
+  if (!file) {
+    alert("Please upload a JS file (solve.js).");
+    return;
+  }
+  const reader = new FileReader();
+  reader.onload = function () {
+    const code = reader.result;
+    executeParticipantCode(code);
+  };
+  reader.readAsText(file);
+}
+
+async function executeParticipantCode(code) {
+  try {
+    // Wrap participant code so we don't collide with our variables
+    const wrapper = {};
+    eval("(function(){ " + code + "; wrapper.solve = solve; })();");
+    const solveFn = wrapper.solve;
+
+    if (typeof solveFn !== "function") {
+      alert("File must define function solve(maze, start, end).");
+      return;
+    }
+
+    const gridCopy = currentGrid.map(row => row.slice());
+    const s = start.slice();
+    const e = end.slice();
+
+    const t0 = performance.now();
+    const path = solveFn(gridCopy, s, e);
+    const t1 = performance.now();
+
+    if (
+      !Array.isArray(path) ||
+      path.length === 0 ||
+      !Array.isArray(path[0]) ||
+      path[0].length !== 2
+    ) {
+      alert("solve() did not return a valid path array.");
+      return;
+    }
+
+    const pathLength = path.length - 1;
+    const timeSec = ((t1 - t0) / 1000).toFixed(4);
+    const score = (pathLength + 2 * parseFloat(timeSec)).toFixed(2);
+
+    document.getElementById("pathLen").innerText = pathLength;
+    document.getElementById("timeSec").innerText = timeSec;
+    document.getElementById("scoreVal").innerText = score;
+
+    lastRun = { level: currentLevel, pathLength, timeSec, score };
+
+    await animatePath(path);
+  } catch (e) {
+    console.error(e);
+    alert("Error in participant code: " + e);
+  }
+}
+
+async function animatePath(path) {
+  for (let i = 0; i < path.length; i++) {
+    drawMaze(path.slice(0, i + 1), path[i]);
+    await new Promise(res => setTimeout(res, 60));
+  }
+}
+
+// --------- SCOREBOARD ---------
+function saveScore() {
+  if (!lastRun) {
+    alert("Run a solution first before saving score.");
+    return;
+  }
+  const name = document.getElementById("playerName").value.trim();
+  if (!name) {
+    alert("Enter participant / team name.");
+    return;
+  }
+
+  const tbody = document.querySelector("#scoreTable tbody");
+  const row = document.createElement("tr");
+  const index = tbody.children.length + 1;
+
+  row.innerHTML = `
+    <td>${index}</td>
+    <td>${name}</td>
+    <td>${capitalize(lastRun.level)}</td>
+    <td>${lastRun.pathLength}</td>
+    <td>${lastRun.timeSec}</td>
+    <td>${lastRun.score}</td>
+  `;
+  tbody.appendChild(row);
+  document.getElementById("playerName").value = "";
+}
+
+function capitalize(s) {
+  return s.charAt(0).toUpperCase() + s.slice(1);
+}
+</script>
+
+</body>
+</html>
